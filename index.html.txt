@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกมเรียงตัวอักษร</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Kanit', sans-serif; /* Added Kanit as a fallback for Thai */
+        }
+        .page {
+            display: none;
+            min-height: 100vh;
+            padding: 1rem; /* Reduced padding for smaller screens */
+        }
+        .page.active {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .letter-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px; /* Reduced gap */
+            padding: 8px; /* Reduced padding */
+            border: 1px solid #ccc;
+            min-height: 50px;
+            border-radius: 8px;
+            background-color: #f9fafb;
+            margin-top: 10px;
+            justify-content: center; /* Center letters in the pool */
+        }
+        .letter, .target-slot {
+            width: 35px; /* Reduced size */
+            height: 35px; /* Reduced size */
+            border: 1px solid #9ca3af;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px; /* Reduced font size */
+            font-weight: bold;
+            user-select: none;
+            background-color: #ffffff;
+            border-radius: 6px; /* Slightly reduced border-radius */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer; /* Add cursor pointer for all clickable items */
+            transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+        }
+        .letter:hover, .target-slot:not(.filled):hover {
+             transform: translateY(-2px);
+             box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        }
+        .letter.selected {
+            outline: 3px solid #3b82f6; /* Blue-500 for selected */
+            transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3); /* Shadow for selected */
+            background-color: #eff6ff; /* Light blue for selected */
+        }
+        .target-slot {
+            background-color: #e5e7eb; /* Lighter gray for empty slots */
+            border-style: dashed;
+        }
+        .target-slot.filled .letter { /* Style for letter INSIDE a filled slot */
+            cursor: default;
+            background-color: #d1fae5; /* Greenish for correctly placed */
+            border-color: #10b981;
+            box-shadow: none;
+            transform: none;
+        }
+         .target-slot.filled:hover { /* Prevent hover effect on filled slots */
+            transform: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .feedback {
+            margin-top: 10px;
+            font-weight: bold;
+            min-height: 24px;
+        }
+        .feedback.correct {
+            color: #10b981; /* Green */
+        }
+        .feedback.incorrect {
+            color: #ef4444; /* Red */
+        }
+        /* Responsive adjustments */
+        @media (min-width: 640px) { /* sm breakpoint */
+            .page {
+                padding: 2rem;
+            }
+            .letter-container {
+                gap: 10px;
+                padding: 10px;
+            }
+            .letter, .target-slot {
+                width: 45px;
+                height: 45px;
+                font-size: 20px;
+                border-radius: 8px;
+            }
+        }
+        .button-primary {
+            background-color: #3b82f6; /* Blue-500 */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            margin-top: 1rem;
+        }
+        .button-primary:hover {
+            background-color: #2563eb; /* Blue-600 */
+        }
+        input[type="text"] {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db; /* Gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            margin-bottom: 0.75rem;
+            width: 100%;
+            max-width: 300px;
+        }
+        .game-info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* Adjusted for 3 items, can be 3 columns or 2x2 */
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            background-color: #f3f4f6; /* Gray-100 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            width: 100%;
+            max-width: 400px; /* Max width for info grid */
+        }
+        .game-info-grid p {
+            margin: 0;
+            font-size: 0.875rem; /* text-sm */
+        }
+         /* Modal for messages */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 300px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .modal-button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-100 to-indigo-200 text-gray-800 flex items-center justify-center min-h-screen">
+
+    <div id="appContainer" class="bg-white p-4 sm:p-8 rounded-xl shadow-2xl w-full max-w-xl md:max-w-2xl lg:max-w-3xl">
+
+        <div id="page-home" class="page active">
+            <h1 class="text-3xl sm:text-4xl font-bold mb-6 text-center text-indigo-600">เกมเรียงตัวอักษรหรรษา</h1>
+            <img src="https://placehold.co/150x150/6366f1/ffffff?text=ABC&font=montserrat" alt="[รูปไอคอนเกม ABC]" class="mx-auto mb-6 rounded-lg">
+            <div class="w-full max-w-sm">
+                <label for="studentName" class="block text-sm font-medium text-gray-700 mb-1">ชื่อนักเรียน:</label>
+                <input type="text" id="studentName" placeholder="เช่น สมชาย ใจดี" class="w-full">
+                
+                <label for="studentId" class="block text-sm font-medium text-gray-700 mb-1 mt-4">เลขที่:</label>
+                <input type="text" id="studentId" placeholder="เช่น 15" class="w-full">
+                
+                <button id="startGameBtn" class="button-primary w-full mt-8">เริ่มเกม</button>
+            </div>
+        </div>
+
+        <div id="page-game" class="page">
+            <div id="game-info" class="game-info-grid text-sm sm:text-base">
+                <p>ชื่อ: <span id="displayStudentName" class="font-semibold"></span></p>
+                <p>เลขที่: <span id="displayStudentId" class="font-semibold"></span></p>
+                <p class="col-span-2 sm:col-span-1">เวลาที่ใช้: <span id="elapsedTimeDisplay" class="font-semibold text-blue-500">0</span> วินาที</p> 
+                </div>
+
+            <div id="feedbackArea" class="feedback text-center text-lg h-8 mb-4"></div>
+
+            <div id="target-slots-container" class="w-full mb-6">
+                <h2 class="text-xl font-semibold mb-2 text-center text-indigo-700">เรียงลำดับ A-Z ตรงนี้ (แตะช่องเพื่อวาง):</h2>
+                <div id="target-slots" class="letter-container bg-indigo-50 p-3 sm:p-4">
+                    </div>
+            </div>
+            
+            <div id="letter-pool-container" class="w-full">
+                <h2 class="text-xl font-semibold mb-2 text-center text-gray-700">ตัวอักษร (แตะเพื่อเลือก):</h2>
+                <div id="letter-pool" class="letter-container bg-gray-50 p-3 sm:p-4">
+                    </div>
+            </div>
+             <button id="endGameEarlyBtn" class="button-primary bg-red-500 hover:bg-red-600 mt-6">ยอมแพ้/จบเกม</button>
+        </div>
+
+        <div id="page-summary" class="page">
+            <h1 class="text-3xl sm:text-4xl font-bold mb-6 text-center text-indigo-600">สรุปผลการเล่นเกม</h1>
+            <div class="bg-gray-100 p-6 rounded-lg shadow-md w-full max-w-md text-center">
+                <img id="summaryImage" src="https://placehold.co/120x120/34d399/ffffff?text=^_^&font=montserrat" alt="[รูปแสดงความยินดี/พยายามใหม่]" class="mx-auto mb-4 rounded-full">
+                <p class="text-lg my-2">ชื่อ: <span id="summaryStudentName" class="font-semibold"></span></p>
+                <p class="text-lg my-2">เลขที่: <span id="summaryStudentId" class="font-semibold"></span></p>
+                <p class="text-lg my-2">เวลาที่ใช้: <span id="summaryTimeUsed" class="font-semibold"></span> วินาที</p>
+                <p class="text-2xl my-3">คะแนน: <span id="summaryScore" class="font-bold text-green-600"></span></p>
+                <p class="text-xl my-3">คำแนะนำ: <span id="summaryFeedback" class="font-semibold text-blue-600"></span></p>
+                <button id="playAgainBtn" class="button-primary w-full mt-6">เล่นอีกครั้ง</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="messageModal" class="modal">
+        <div class="modal-content">
+            <p id="modalMessageText"></p>
+            <button id="modalCloseBtn" class="modal-button">ตกลง</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const pages = {
+            home: document.getElementById('page-home'),
+            game: document.getElementById('page-game'),
+            summary: document.getElementById('page-summary')
+        };
+        const studentNameInput = document.getElementById('studentName');
+        const studentIdInput = document.getElementById('studentId');
+        const startGameBtn = document.getElementById('startGameBtn');
+        const playAgainBtn = document.getElementById('playAgainBtn');
+        const endGameEarlyBtn = document.getElementById('endGameEarlyBtn');
+
+        const displayStudentName = document.getElementById('displayStudentName');
+        const displayStudentId = document.getElementById('displayStudentId');
+        const elapsedTimeDisplay = document.getElementById('elapsedTimeDisplay'); // Renamed from timerDisplay
+        // const scoreDisplay = document.getElementById('scoreDisplay'); // No longer used on game page
+
+        const feedbackArea = document.getElementById('feedbackArea');
+        const letterPool = document.getElementById('letter-pool');
+        const targetSlotsContainer = document.getElementById('target-slots');
+
+        const summaryStudentName = document.getElementById('summaryStudentName');
+        const summaryStudentId = document.getElementById('summaryStudentId');
+        const summaryTimeUsed = document.getElementById('summaryTimeUsed');
+        const summaryScore = document.getElementById('summaryScore');
+        const summaryFeedback = document.getElementById('summaryFeedback');
+        const summaryImage = document.getElementById('summaryImage');
+
+        // Modal elements
+        const messageModal = document.getElementById('messageModal');
+        const modalMessageText = document.getElementById('modalMessageText');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
+
+        // Game State
+        let currentStudentName = '';
+        let currentStudentId = '';
+        let finalScore = 0; // Score is calculated at the end
+        let elapsedTimeInSeconds = 0; // Timer counts up
+        let timerInterval;
+        let gameAlphabetPool = []; // Stores {id, displayText, originalUpperCase, elementRef}
+        const targetAlphabetOrder = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
+        let placedCount = 0;
+        let selectedLetterElement = null; // Stores the currently selected letter DOM element from the pool
+
+        // --- Utility Functions ---
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function showPage(pageId) {
+            Object.values(pages).forEach(page => page.classList.remove('active'));
+            pages[pageId].classList.add('active');
+        }
+        
+        function showModal(message) {
+            modalMessageText.textContent = message;
+            messageModal.style.display = "block";
+        }
+
+        modalCloseBtn.onclick = function() {
+            messageModal.style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            if (event.target == messageModal) {
+                messageModal.style.display = "none";
+            }
+        }
+
+        // --- Game Logic ---
+        function generateGameLetters() {
+            gameAlphabetPool = [];
+            for (let i = 0; i < 26; i++) {
+                const char = targetAlphabetOrder[i];
+                let displayChar = Math.random() < 0.5 ? char.toUpperCase() : char.toLowerCase();
+                gameAlphabetPool.push({
+                    id: `letter-${char}-${i}`, 
+                    displayText: displayChar,
+                    originalUpperCase: char,
+                    elementRef: null 
+                });
+            }
+            gameAlphabetPool = shuffleArray(gameAlphabetPool);
+        }
+
+        function displayLettersAndSlots() {
+            letterPool.innerHTML = '';
+            targetSlotsContainer.innerHTML = '';
+            placedCount = 0;
+            selectedLetterElement = null; 
+
+            gameAlphabetPool.forEach(letterObj => {
+                const letterEl = document.createElement('div');
+                letterEl.classList.add('letter');
+                letterEl.textContent = letterObj.displayText;
+                letterEl.id = letterObj.id;
+                letterEl.dataset.original = letterObj.originalUpperCase; 
+                letterEl.addEventListener('click', handleLetterClick);
+                letterPool.appendChild(letterEl);
+                letterObj.elementRef = letterEl; 
+            });
+
+            for (let i = 0; i < 26; i++) {
+                const slotEl = document.createElement('div');
+                slotEl.classList.add('target-slot');
+                slotEl.dataset.index = i;
+                slotEl.dataset.expected = targetAlphabetOrder[i]; 
+                slotEl.addEventListener('click', handleSlotClick);
+                targetSlotsContainer.appendChild(slotEl);
+            }
+        }
+        
+        // updateScoreDisplay is removed as score is not shown live
+
+        function showFeedback(message, type) {
+            feedbackArea.textContent = message;
+            feedbackArea.className = `feedback text-center text-lg h-8 mb-4 ${type}`;
+            setTimeout(() => {
+                if (feedbackArea.textContent === message) {
+                    feedbackArea.textContent = '';
+                    feedbackArea.className = 'feedback text-center text-lg h-8 mb-4';
+                }
+            }, 2000);
+        }
+
+        function startTimer() {
+            elapsedTimeInSeconds = 0; // Reset timer
+            elapsedTimeDisplay.textContent = elapsedTimeInSeconds;
+            clearInterval(timerInterval); 
+            timerInterval = setInterval(() => {
+                elapsedTimeInSeconds++;
+                elapsedTimeDisplay.textContent = elapsedTimeInSeconds;
+                // No end condition for timer itself, game ends by completion or giving up
+            }, 1000);
+        }
+
+        // --- Event Handlers (Touch/Click Interaction) ---
+        function handleLetterClick(event) {
+            const clickedLetter = event.currentTarget;
+
+            if (clickedLetter.parentElement.classList.contains('target-slot')) {
+                return;
+            }
+
+            if (selectedLetterElement === clickedLetter) {
+                selectedLetterElement.classList.remove('selected');
+                selectedLetterElement = null;
+            } else {
+                if (selectedLetterElement) {
+                    selectedLetterElement.classList.remove('selected');
+                }
+                selectedLetterElement = clickedLetter;
+                selectedLetterElement.classList.add('selected');
+            }
+        }
+
+        function handleSlotClick(event) {
+            const targetSlot = event.currentTarget;
+
+            if (!selectedLetterElement || targetSlot.children.length > 0) {
+                if (!selectedLetterElement && targetSlot.children.length === 0) {
+                     showFeedback("กรุณาเลือกตัวอักษรก่อนค่ะ", "incorrect");
+                } else if (targetSlot.children.length > 0) {
+                     showFeedback("ช่องนี้มีตัวอักษรแล้วค่ะ", "incorrect");
+                }
+                return;
+            }
+
+            const expectedChar = targetSlot.dataset.expected;
+            const selectedLetterOriginalChar = selectedLetterElement.dataset.original;
+
+            if (selectedLetterOriginalChar === expectedChar) {
+                targetSlot.appendChild(selectedLetterElement); 
+                selectedLetterElement.classList.remove('selected'); 
+                selectedLetterElement.removeEventListener('click', handleLetterClick); 
+                selectedLetterElement.style.cursor = 'default'; 
+                
+                targetSlot.classList.add('filled'); 
+                placedCount++;
+                // Score is not incremented here anymore
+                showFeedback("ถูกต้องค่ะ!", "correct");
+
+                selectedLetterElement = null; 
+
+                if (placedCount === 26) { // All letters placed
+                    clearInterval(timerInterval); // Stop timer immediately
+                    endGame(true); // Game won
+                }
+            } else {
+                showFeedback("ผิดตำแหน่งค่ะ ลองใหม่นะคะ", "incorrect");
+                if (selectedLetterElement) {
+                    selectedLetterElement.classList.remove('selected');
+                }
+                selectedLetterElement = null;
+            }
+        }
+
+        // --- Original Event Handlers & Game Flow ---
+        startGameBtn.addEventListener('click', () => {
+            currentStudentName = studentNameInput.value.trim();
+            currentStudentId = studentIdInput.value.trim();
+
+            if (!currentStudentName || !currentStudentId) {
+                showModal("กรุณากรอกชื่อและเลขที่ให้ครบถ้วนค่ะ");
+                return;
+            }
+
+            displayStudentName.textContent = currentStudentName;
+            displayStudentId.textContent = currentStudentId;
+            
+            finalScore = 0; // Reset score for new game
+            // updateScoreDisplay(); // Removed
+            generateGameLetters();
+            displayLettersAndSlots();
+            startTimer(); // Timer now counts up
+            showPage('game');
+        });
+        
+        endGameEarlyBtn.addEventListener('click', () => {
+            clearInterval(timerInterval); // Stop timer
+            endGame(false); // Player gives up, isWin is false
+        });
+
+        function calculateTimeBasedScore(timeInSeconds) {
+            if (timeInSeconds <= 120) return 10; // Within 2 minutes
+            if (timeInSeconds <= 150) return 9;  // 2:01 - 2:30
+            if (timeInSeconds <= 180) return 8;  // 2:31 - 3:00
+            if (timeInSeconds <= 210) return 7;  // 3:01 - 3:30
+            if (timeInSeconds <= 240) return 6;  // 3:31 - 4:00
+            if (timeInSeconds <= 270) return 5;  // 4:01 - 4:30
+            if (timeInSeconds <= 300) return 4;  // 4:31 - 5:00
+            if (timeInSeconds <= 330) return 3;  // 5:01 - 5:30
+            if (timeInSeconds <= 360) return 2;  // 5:31 - 6:00
+            return 1; // Over 6 minutes but completed
+        }
+
+        function endGame(isWin) {
+            clearInterval(timerInterval); // Ensure timer is stopped
+            summaryStudentName.textContent = currentStudentName;
+            summaryStudentId.textContent = currentStudentId;
+            summaryTimeUsed.textContent = elapsedTimeInSeconds; // Show time used
+
+            let feedbackMsg = "";
+            let imgSrc = "https://placehold.co/120x120/fbbf24/ffffff?text=พยายามอีกนะ&font=montserrat"; 
+
+            if (isWin) { // Player completed all 26 letters
+                finalScore = calculateTimeBasedScore(elapsedTimeInSeconds);
+                if (finalScore === 10) {
+                    feedbackMsg = "สุดยอดมาก! เรียงถูกต้องและรวดเร็วมากค่ะพี่! (เต็ม 10)";
+                    imgSrc = "https://placehold.co/120x120/34d399/ffffff?text=ยินดีด้วย!&font=montserrat";
+                } else if (finalScore >= 7) {
+                    feedbackMsg = `เก่งมากค่ะพี่! ทำได้ดีมาก ได้ ${finalScore} คะแนน!`;
+                    imgSrc = "https://placehold.co/120x120/60a5fa/ffffff?text=เยี่ยม!&font=montserrat";
+                } else if (finalScore >= 4) {
+                    feedbackMsg = `ทำได้ดีค่ะพี่! พยายามได้ดี ได้ ${finalScore} คะแนน!`;
+                    imgSrc = "https://placehold.co/120x120/818cf8/ffffff?text=ดีมาก!&font=montserrat";
+                } else {
+                     feedbackMsg = `พยายามได้ดีค่ะพี่! ได้ ${finalScore} คะแนน สู้ๆ นะคะ!`;
+                     imgSrc = "https://placehold.co/120x120/fbbf24/ffffff?text=สู้ๆ!&font=montserrat";
+                }
+            } else { // Player gave up or time ran out (though timer is count-up now)
+                finalScore = 0; // No points if not completed
+                feedbackMsg = "สู้ๆ นะคะพี่! ลองพยายามอีกครั้งค่ะ!";
+                imgSrc = "https://placehold.co/120x120/f87171/ffffff?text=อีกครั้ง!&font=montserrat";
+            }
+            
+            summaryScore.textContent = finalScore;
+            summaryFeedback.textContent = feedbackMsg;
+            const imgText = feedbackMsg.split('!')[0].split('(')[0].trim() || "ผลลัพธ์";
+            summaryImage.src = `https://placehold.co/120x120/${imgSrc.split('/')[4]}/${imgSrc.split('/')[5].split('?')[0]}?text=${encodeURIComponent(imgText)}&font=montserrat`;
+
+            showPage('summary');
+        }
+
+        playAgainBtn.addEventListener('click', () => {
+            showPage('home');
+        });
+
+        // Initialize
+        showPage('home');
+    </script>
+</body>
+</html>
